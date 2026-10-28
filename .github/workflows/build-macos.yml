@@ -11,30 +11,59 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Show runner architecture
+        run: |
+          echo "Runner architecture:"
+          uname -m
+          echo "Machine architecture:"
+          arch
+
+      - name: Set up Python ARM64
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          architecture: "arm64"
+
+      - name: Verify Python architecture
+        run: |
+          python -c "import platform; print('Python architecture:', platform.machine())"
+          file "$(which python)"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+          python -m pip install -r requirements.txt
+          python -m pip install pyinstaller
 
       - name: Build macOS application
         run: |
-          pyinstaller \
+          python -m PyInstaller \
             --noconfirm \
             --clean \
             --windowed \
+            --target-architecture arm64 \
             --name "Asart Bookkeeping" \
             run.py
+
+      - name: Verify built app architecture
+        run: |
+          echo "Built executable:"
+          file "dist/Asart Bookkeeping.app/Contents/MacOS/Asart Bookkeeping"
+
+          echo "lipo output:"
+          lipo -info "dist/Asart Bookkeeping.app/Contents/MacOS/Asart Bookkeeping"
+
+          echo "Checking for x86_64:"
+          if lipo -info "dist/Asart Bookkeeping.app/Contents/MacOS/Asart Bookkeeping" | grep -q "x86_64"; then
+            echo "ERROR: Intel architecture detected."
+            exit 1
+          fi
 
       - name: Create DMG folder
         run: |
           mkdir -p dmg
           cp -R "dist/Asart Bookkeeping.app" dmg/
+          ln -s /Applications dmg/Applications
 
       - name: Create DMG
         run: |
@@ -43,10 +72,10 @@ jobs:
             -srcfolder dmg \
             -ov \
             -format UDZO \
-            "AsartBookkeeping_Setup.dmg"
+            "AsartBookkeeping_Setup_ARM64.dmg"
 
       - name: Upload macOS installer
         uses: actions/upload-artifact@v4
         with:
-          name: AsartBookkeeping-macOS
-          path: AsartBookkeeping_Setup.dmg
+          name: AsartBookkeeping-macOS-ARM64
+          path: AsartBookkeeping_Setup_ARM64.dmg
